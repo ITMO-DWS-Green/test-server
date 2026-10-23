@@ -1,0 +1,52 @@
+# Четыре экземпляра тестового сервера образуют цепочку:
+#   gateway → orders → payments → database
+#                   ↘ database
+# Панель управления: http://localhost:8090
+#
+# Подключить к log-collector: COLLECTOR_URL=http://host.docker.internal:8080 docker compose up --build
+
+x-test-server: &test-server
+  build: .
+  image: test-server:local
+  restart: unless-stopped   # после CRASH контейнер поднимется сам
+  mem_limit: 384m
+  volumes:
+    - ./playbooks:/opt/app/playbooks:ro
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+x-env: &env
+  TESTSERVER_COLLECTOR_URL: ${COLLECTOR_URL:-}
+
+services:
+  gateway:
+    <<: *test-server
+    ports: ["8090:8080"]
+    environment:
+      <<: *env
+      TESTSERVER_SERVICENAME: gateway
+      TESTSERVER_DOWNSTREAM: orders
+      TESTSERVER_TRAFFIC_RPS: ${TRAFFIC_RPS:-10}
+
+  orders:
+    <<: *test-server
+    ports: ["8091:8080"]
+    environment:
+      <<: *env
+      TESTSERVER_SERVICENAME: orders
+      TESTSERVER_DOWNSTREAM: payments,database
+
+  payments:
+    <<: *test-server
+    ports: ["8092:8080"]
+    environment:
+      <<: *env
+      TESTSERVER_SERVICENAME: payments
+      TESTSERVER_DOWNSTREAM: database
+
+  database:
+    <<: *test-server
+    ports: ["8093:8080"]
+    environment:
+      <<: *env
+      TESTSERVER_SERVICENAME: database

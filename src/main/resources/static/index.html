@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Тестовый стенд</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --line: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149; --accent: #4f8cff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { padding: 20px 24px 8px; }
+  h1 { margin: 0; font-size: 20px; }
+  .sub { color: var(--muted); margin-top: 4px; }
+  main { padding: 16px 24px 40px; display: grid; gap: 24px; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .chain { color: var(--muted); margin-bottom: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+  .card.down { border-color: var(--bad); }
+  .card.fault { border-color: var(--warn); }
+  .title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); flex: none; }
+  .fault .dot { background: var(--warn); }
+  .down .dot { background: var(--bad); }
+  .deps { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: auto; }
+  .scenario { font-weight: 600; }
+  .scenario small { display: block; color: var(--muted); font-weight: 400; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .stat { background: var(--bg); border-radius: 6px; padding: 6px 8px; }
+  .stat b { display: block; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 11px; }
+  .bad { color: var(--bad); }
+  form { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  label { color: var(--muted); font-size: 12px; display: grid; gap: 2px; flex: 1; }
+  select, input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  button { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  button.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+  button.danger { background: var(--bad); }
+  button:disabled { opacity: .5; cursor: default; }
+  .hidden { display: none !important; }
+  .playbooks { display: grid; gap: 10px; }
+  .pb { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; display: flex; gap: 16px; align-items: center; }
+  .pb div { flex: 1; }
+  .pb small { color: var(--muted); display: block; }
+  .run { background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 16px; display: grid; gap: 8px; }
+  .bar { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .5s; }
+  #toast { position: fixed; bottom: 16px; right: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; opacity: 0; transition: opacity .2s; max-width: 420px; }
+  #toast.show { opacity: 1; }
+  @media (max-width: 600px) { header, main { padding-left: 16px; padding-right: 16px; } .stats { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Тестовый стенд log-collector</h1>
+  <div class="sub">Включайте сбои на сервисах и смотрите, как их обнаруживает log-collector.</div>
+</header>
+<main>
+  <section>
+    <h2>Сервисы</h2>
+    <div class="chain" id="chain"></div>
+    <div class="cards" id="cards"></div>
+  </section>
+  <section>
+    <h2>Плейбуки</h2>
+    <div class="run hidden" id="run">
+      <div class="row"><b id="run-name"></b><span id="run-meta" class="sub" style="margin:0"></span>
+        <button class="danger" id="run-stop" style="margin-left:auto">Остановить</button></div>
+      <div class="bar"><i id="run-bar"></i></div>
+    </div>
+    <div class="playbooks" id="playbooks"></div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+const $ = (sel, el = document) => el.querySelector(sel);
+let scenarioTypes = [];
+const cards = new Map();
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((data && (data.message || data.error)) || res.statusText);
+  return data;
+}
+
+function toast(text) {
+  const t = $('#toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function pct(x) { return (x * 100).toFixed(x > 0 && x < 0.1 ? 1 : 0) + '%'; }
+
+function buildCard(name) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.innerHTML = `
+    <div class="title"><span class="dot"></span><span>${name}</span><span class="deps"></span></div>
+    <div class="scenario"><span class="type"></span><small class="desc"></small></div>
+    <div class="stats">
+      <div class="stat"><b class="rps"></b><span>запр/с</span></div>
+      <div class="stat"><b class="e5"></b><span>5xx</span></div>
+      <div class="stat"><b class="e4"></b><span>4xx</span></div>
+      <div class="stat"><b class="lat"></b><span>мс, сред.</span></div>
+    </div>
+    <form class="scenario-form">
+      <label>Сценарий<select name="type">${scenarioTypes.map(t =>
+        `<option value="${t.type}">${t.type} — ${t.description}</option>`).join('')}</select></label>
+      <div class="row">
+        <label class="p-RATE">Доля сбоев, %<input name="rate" type="number" min="0" max="100" value="50"></label>
+        <label class="p-DELAY_MS">Задержка, мс<input name="delayMs" type="number" min="0"></label>
+        <label class="p-INTENSITY"><span class="unit">Сила</span><input name="intensity" type="number" min="1"></label>
+        <label>Длительность, с<input name="durationSeconds" type="number" min="1" placeholder="бессрочно"></label>
+      </div>
+      <div class="row">
+        <button type="submit">Включить</button>
+        <button type="button" class="ghost reset">Вернуть норму</button>
+      </div>
+    </form>
+    <form class="traffic-form">
+      <div class="row">
+        <label>Встроенный трафик, запр/с<input name="rps" type="number" min="0" max="500"></label>
+        <button type="submit" class="ghost" style="align-self:end">Задать</button>
+      </div>
+    </form>`;
+  const form = $('.scenario-form', el);
+  const typeSelect = form.elements.type;
+  const syncParams = () => {
+    const info = scenarioTypes.find(t => t.type === typeSelect.value);
+    for (const p of ['RATE', 'DELAY_MS', 'INTENSITY']) {
+      $('.p-' + p, form).classList.toggle('hidden', !info.params.includes(p));
+    }
+    form.elements.delayMs.value = info.defaultDelayMs || '';
+    form.elements.intensity.value = info.defaultIntensity || '';
+    $('.unit', form).textContent = info.intensityUnit ? 'Сила, ' + info.intensityUnit : 'Сила';
+  };
+  typeSelect.addEventListener('change', syncParams);
+  syncParams();
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = form.elements;
+    const body = { type: f.type.value };
+    if (f.durationSeconds.value) body.durationSeconds = +f.durationSeconds.value;
+    if (!$('.p-RATE', form).classList.contains('hidden')) body.rate = +f.rate.value / 100;
+    if (!$('.p-DELAY_MS', form).classList.contains('hidden') && f.delayMs.value) body.delayMs = +f.delayMs.value;
+    if (!$('.p-INTENSITY', form).classList.contains('hidden') && f.intensity.value) body.intensity = +f.intensity.value;
+    if (body.type === 'CRASH' && !confirm(`Уронить процесс ${name}? В Docker он перезапустится.`)) return;
+    try {
+      await api('POST', '/chaos/scenario?target=' + encodeURIComponent(name), body);
+      toast(`${name}: ${body.type}`);
+      refresh();
+    } catch (err) { toast(`${name}: ${err.message}`); }
+  });
+  $('.reset', form).addEventListener('click', async () => {
+    try {
+      await api('DELETE', '/chaos/scenario?target=' + encodeURIComponent(name));
+      toast(`${name}: норма`);
+      refresh();
+    } catch (err) { toast(`${name}: ${err.message}`); }
+  });
+  const traffic = $('.traffic-form', el);
+  traffic.addEventListener('submit', async e => {
+    e.preventDefault();
+    try {
+      await api('PUT', '/chaos/traffic?target=' + encodeURIComponent(name), { rps: +traffic.elements.rps.value || 0 });
+      toast(`${name}: трафик ${traffic.elements.rps.value || 0} запр/с`);
+    } catch (err) { toast(`${name}: ${err.message}`); }
+  });
+  return el;
+}
+
+function updateCard(s) {
+  let card = cards.get(s.service);
+  if (!card) {
+    card = { el: buildCard(s.service), trafficSet: false };
+    cards.set(s.service, card);
+    $('#cards').appendChild(card.el);
+  }
+  const el = card.el;
+  const forms = el.querySelectorAll('form');
+  if (!s.reachable) {
+    el.className = 'card down';
+    $('.type', el).textContent = 'Недоступен';
+    $('.desc', el).textContent = 'Не отвечает на запросы управления — упал, перезапускается или не запущен';
+    forms.forEach(f => f.querySelectorAll('button,input,select').forEach(x => x.disabled = true));
+    for (const k of ['rps', 'e5', 'e4', 'lat']) $('.' + k, el).textContent = '—';
+    return;
+  }
+  forms.forEach(f => f.querySelectorAll('button,input,select').forEach(x => x.disabled = false));
+  const sc = s.scenario;
+  const down = sc.type === 'UNAVAILABLE' || sc.type === 'CRASH';
+  el.className = 'card' + (down ? ' down' : sc.type !== 'NORMAL' ? ' fault' : '');
+  $('.deps', el).textContent = s.downstream && s.downstream.length ? '→ ' + s.downstream.join(', ') : '';
+  $('.type', el).textContent = sc.type;
+  const params = [];
+  if (sc.type === 'ERRORS_5XX' || sc.type === 'ERRORS_4XX') params.push(pct(sc.rate));
+  if (sc.type === 'LATENCY' || sc.type === 'HANG') params.push(sc.delayMs + ' мс');
+  if (['CPU_LOAD', 'MEMORY_LEAK', 'LOG_FLOOD'].includes(sc.type)) params.push('сила ' + sc.intensity);
+  if (sc.secondsLeft != null) params.push(`ещё ${sc.secondsLeft} с`);
+  if (sc.scenarioId) params.push(sc.scenarioId);
+  $('.desc', el).textContent = sc.description + (params.length ? ' · ' + params.join(' · ') : '');
+  const st = s.stats;
+  $('.rps', el).textContent = st.requests;
+  $('.e5', el).textContent = pct(st.requests ? st.serverErrors / st.requests : 0);
+  $('.e5', el).classList.toggle('bad', st.serverErrors > 0);
+  $('.e4', el).textContent = pct(st.requests ? st.clientErrors / st.requests : 0);
+  $('.lat', el).textContent = Math.round(st.avgLatencyMs);
+  $('.lat', el).classList.toggle('bad', st.avgLatencyMs > 1000);
+  if (!card.trafficSet) {
+    $('.traffic-form', el).elements.rps.value = s.trafficRps;
+    card.trafficSet = true;
+  }
+}
+
+function renderChain(statuses) {
+  const parts = statuses.filter(s => s.reachable && s.downstream && s.downstream.length)
+    .map(s => `${s.service} → ${s.downstream.join(', ')}`);
+  $('#chain').textContent = parts.length ? 'Кто кого вызывает: ' + parts.join(' · ') : '';
+}
+
+async function loadPlaybooks() {
+  const list = await api('GET', '/chaos/playbooks');
+  const box = $('#playbooks');
+  box.innerHTML = '';
+  if (!list.length) {
+    box.innerHTML = '<div class="sub">Плейбуков нет — положите JSON-файлы в папку playbooks.</div>';
+    return;
+  }
+  for (const pb of list) {
+    const el = document.createElement('div');
+    el.className = 'pb';
+    const minutes = Math.ceil(pb.steps.reduce((m, s) => Math.max(m, s.atSeconds + (s.scenario.durationSeconds || 0)), 0) / 60);
+    el.innerHTML = `<div><b></b><small></small></div><button>Запустить</button>`;
+    $('b', el).textContent = pb.name;
+    $('small', el).textContent = `${pb.description || ''} · шагов: ${pb.steps.length}, ~${minutes} мин`;
+    $('button', el).addEventListener('click', async () => {
+      try { await api('POST', `/chaos/playbooks/${encodeURIComponent(pb.name)}/run`); toast('Запущен ' + pb.name); refresh(); }
+      catch (err) { toast(err.message); }
+    });
+    box.appendChild(el);
+  }
+}
+
+async function refreshRun() {
+  const run = await api('GET', '/chaos/playbooks/current');
+  const box = $('#run');
+  if (!run) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  $('#run-name').textContent = run.playbook;
+  $('#run-meta').textContent = run.running
+    ? `шаг ${run.stepsDone} из ${run.stepsTotal} · ${run.elapsedSeconds} из ${run.totalSeconds} с · ${run.scenarioId}`
+    : `завершён · ${run.scenarioId}`;
+  $('#run-bar').style.width = (run.totalSeconds ? Math.min(100, run.elapsedSeconds / run.totalSeconds * 100) : 100) + '%';
+  $('#run-stop').classList.toggle('hidden', !run.running);
+}
+
+async function refresh() {
+  try {
+    const statuses = await api('GET', '/chaos/status/all');
+    statuses.forEach(updateCard);
+    renderChain(statuses);
+    await refreshRun();
+  } catch (err) {
+    toast('Нет связи с сервером: ' + err.message);
+  }
+}
+
+$('#run-stop').addEventListener('click', async () => {
+  try { await api('POST', '/chaos/playbooks/stop'); toast('Плейбук остановлен, сервисы возвращены в норму'); refresh(); }
+  catch (err) { toast(err.message); }
+});
+
+(async () => {
+  scenarioTypes = await api('GET', '/chaos/scenarios');
+  await refresh();
+  await loadPlaybooks();
+  setInterval(refresh, 1000);
+})();
+</script>
+</body>
+</html>

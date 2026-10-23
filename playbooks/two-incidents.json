@@ -1,0 +1,8 @@
+{
+  "name": "two-incidents",
+  "description": "Два независимых сбоя внахлёст на разных сервисах — проверка, что получится два инцидента, а не один.",
+  "steps": [
+    {"atSeconds": 60, "target": "database", "scenario": {"type": "ERRORS_5XX", "rate": 0.4, "durationSeconds": 120}},
+    {"atSeconds": 120, "target": "gateway", "scenario": {"type": "MEMORY_LEAK", "intensity": 5, "durationSeconds": 120}}
+  ]
+}

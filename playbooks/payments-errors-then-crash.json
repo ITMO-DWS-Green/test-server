@@ -1,0 +1,8 @@
+{
+  "name": "payments-errors-then-crash",
+  "description": "Payments отвечает 5xx на треть запросов, потом падает и перезапускается.",
+  "steps": [
+    {"atSeconds": 60, "target": "payments", "scenario": {"type": "ERRORS_5XX", "rate": 0.3, "durationSeconds": 90}},
+    {"atSeconds": 240, "target": "payments", "scenario": {"type": "CRASH"}}
+  ]
+}

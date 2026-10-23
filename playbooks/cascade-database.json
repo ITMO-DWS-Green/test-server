@@ -1,0 +1,7 @@
+{
+  "name": "cascade-database",
+  "description": "База тормозит — задержки и таймауты каскадом поднимаются до gateway. Источник один: database.",
+  "steps": [
+    {"atSeconds": 60, "target": "database", "scenario": {"type": "LATENCY", "delayMs": 4000, "durationSeconds": 120}}
+  ]
+}

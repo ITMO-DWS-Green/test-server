@@ -1,0 +1,13 @@
+{
+  "name": "all-fault-types",
+  "description": "Все типы сбоев по очереди на orders: по 60 секунд сбоя и 60 секунд нормы. Для проверки обнаружения.",
+  "steps": [
+    {"atSeconds": 60,  "target": "orders", "scenario": {"type": "ERRORS_5XX", "rate": 0.5, "durationSeconds": 60}},
+    {"atSeconds": 180, "target": "orders", "scenario": {"type": "ERRORS_4XX", "rate": 0.5, "durationSeconds": 60}},
+    {"atSeconds": 300, "target": "orders", "scenario": {"type": "LATENCY", "delayMs": 1500, "durationSeconds": 60}},
+    {"atSeconds": 420, "target": "orders", "scenario": {"type": "UNAVAILABLE", "durationSeconds": 60}},
+    {"atSeconds": 540, "target": "orders", "scenario": {"type": "CPU_LOAD", "intensity": 2, "durationSeconds": 60}},
+    {"atSeconds": 660, "target": "orders", "scenario": {"type": "MEMORY_LEAK", "intensity": 5, "durationSeconds": 60}},
+    {"atSeconds": 780, "target": "orders", "scenario": {"type": "LOG_FLOOD", "intensity": 50, "durationSeconds": 60}}
+  ]
+}
