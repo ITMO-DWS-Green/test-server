@@ -45,6 +45,8 @@ gateway → orders → payments → database
 - **записи лога**: журнал запросов, ошибки, предупреждения, со сквозным `traceId` через всю цепочку;
 - **метрики**: `rps`, `latency_ms`, `error_rate` (доля 5xx), `client_error_rate` (доля 4xx), `cpu_usage`, `memory_mb`.
 
+Если телеметрию собирает кто-то другой (например, Zabbix), отключите её через `TESTSERVER_COLLECTOR_TELEMETRY=false`: `POST /api/v1/telemetry` перестанет вызываться, а разметка по-прежнему уйдёт.
+
 Когда сбой заканчивается, сервис отправляет его **разметку** (`POST /api/v1/labels`): сценарий, тип, сервис-источник, начало и конец. По ней log-collector считает precision, recall и задержку обнаружения.
 
 `client_error_rate` пока не входит в список метрик log-collector (`core/.../model/Metrics.java`) — его нужно туда добавить.
@@ -144,6 +146,7 @@ curl -X PUT localhost:8090/chaos/traffic -H 'Content-Type: application/json' -d 
 | `TESTSERVER_DOWNSTREAM` | Кого вызывать, через запятую |
 | `TESTSERVER_TRAFFIC_RPS` | Встроенный трафик |
 | `TESTSERVER_COLLECTOR_URL` | Адрес log-collector |
+| `TESTSERVER_COLLECTOR_TELEMETRY` | `false` — отправлять только разметку, без логов и метрик (по умолчанию `true`) |
 | `SERVER_PORT` | Порт |
 
 Адреса других экземпляров задаются в `testserver.peers` в `application.yml`.

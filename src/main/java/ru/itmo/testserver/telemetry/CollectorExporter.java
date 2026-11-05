@@ -24,6 +24,7 @@ public class CollectorExporter {
     private final LogCapture logs;
     private final RequestStats stats;
     private final String service;
+    private final boolean telemetry;
     private final OperatingSystemMXBean os =
             (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
 
@@ -32,12 +33,13 @@ public class CollectorExporter {
         this.logs = logs;
         this.stats = stats;
         this.service = props.serviceName();
+        this.telemetry = props.collector().telemetry();
     }
 
     @Scheduled(fixedDelayString = "${testserver.collector.export-interval-ms:1000}")
     public void export() {
         List<LogCapture.Captured> captured = logs.drain(MAX_LOGS_PER_BATCH);
-        if (!client.enabled()) {
+        if (!client.enabled() || !telemetry) {
             return; // всё равно забираем записи, чтобы очередь не росла
         }
         Instant now = Instant.now();
