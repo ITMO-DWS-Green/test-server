@@ -42,7 +42,7 @@ public class ChaosFilter extends OncePerRequestFilter {
             case ERRORS_5XX -> {
                 if (hit(s.rate())) {
                     String reason = SERVER_FAILURES[ThreadLocalRandom.current().nextInt(SERVER_FAILURES.length)];
-                    LOG.error("Unhandled exception while processing {}", target, new IllegalStateException(reason));
+                    LOG.error("Unhandled exception while processing {}: {}", target, reason, new IllegalStateException(reason));
                     reject(response, 500, "internal server error");
                     return;
                 }
