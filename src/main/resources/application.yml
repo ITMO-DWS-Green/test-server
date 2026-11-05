@@ -26,6 +26,8 @@ management:
 logging:
   pattern:
     console: "%d{HH:mm:ss.SSS} %-5level [${TESTSERVER_SERVICENAME:test-service}] [%X{traceId:-}] %logger{30} - %msg%n"
+    # В файл (его читает агент Zabbix) — одна строка на запись, без стека: log[] читает построчно
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [${TESTSERVER_SERVICENAME:test-service}] [%X{traceId:-}] %logger{30} - %msg%nopex%n"
 
 testserver:
   service-name: test-service
