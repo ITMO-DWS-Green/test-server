@@ -45,4 +45,5 @@ testserver:
     scenario-id: manual
     export-interval-ms: 1000
     crash-label-seconds: 30
+    telemetry: true   # false — в collector уходит только разметка сбоев
   playbooks-dir: playbooks

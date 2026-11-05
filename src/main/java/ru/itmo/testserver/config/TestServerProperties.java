@@ -29,7 +29,7 @@ public record TestServerProperties(
         downstream = downstream == null ? List.of() : List.copyOf(downstream);
         peers = peers == null ? Map.of() : new LinkedHashMap<>(peers);
         traffic = traffic == null ? new Traffic(0) : traffic;
-        collector = collector == null ? new Collector(null, null, null, null) : collector;
+        collector = collector == null ? new Collector(null, null, null, null, null) : collector;
         playbooksDir = playbooksDir == null || playbooksDir.isBlank() ? "playbooks" : playbooksDir;
     }
 
@@ -42,12 +42,15 @@ public record TestServerProperties(
      * @param scenarioId         id сценария для разметки при ручном переключении
      * @param exportIntervalMs   как часто отправлять логи и метрики
      * @param crashLabelSeconds  длительность сбоя в разметке для CRASH — сам процесс конец не узнает
+     * @param telemetry          отправлять логи и метрики; false — уходит только разметка
      */
-    public record Collector(String url, String scenarioId, Long exportIntervalMs, Integer crashLabelSeconds) {
+    public record Collector(String url, String scenarioId, Long exportIntervalMs, Integer crashLabelSeconds,
+                            Boolean telemetry) {
         public Collector {
             scenarioId = scenarioId == null || scenarioId.isBlank() ? "manual" : scenarioId;
             exportIntervalMs = exportIntervalMs == null ? 1000L : exportIntervalMs;
             crashLabelSeconds = crashLabelSeconds == null ? 30 : crashLabelSeconds;
+            telemetry = telemetry == null || telemetry;
         }
 
         public boolean enabled() {
