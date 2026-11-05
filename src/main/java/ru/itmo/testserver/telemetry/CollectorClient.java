@@ -30,7 +30,8 @@ public class CollectorClient {
                 ? builder.requestFactory(factory).baseUrl(props.collector().url()).build()
                 : null;
         if (enabled) {
-            LOG.info("Sending telemetry to log-collector at {}", props.collector().url());
+            LOG.info("Sending {} to log-collector at {}",
+                    props.collector().telemetry() ? "telemetry and labels" : "labels only", props.collector().url());
         }
     }
 
